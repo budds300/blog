@@ -22,4 +22,89 @@ class Quote:
 class User(db.Model,UserMixin):
     __tablename__ ='users'
     
-    id = Column(db.Integer,primary_key=True)
+    id = db.Column(db.Integer,primary_key=True)
+    username=db.Column(db.String(255))
+    role_id = db.Column(db.Integer,db.ForeignKey('roles.id'))
+    password = db.Column(db.String(255))
+    bio = db.Column(db.String(255))
+    profile_pic_path = db.Column(db.String)
+    blog = db.relationship('Blog',backref='user',lazy='dynamic')
+    
+    @property
+    def password(self):
+        raise AttributeError("You cannot read the attribute")
+    
+    @password.setter
+    def password(self, password):
+        self.password_hash = generate_password_hash(password)
+        
+    def verify_password(self, password):
+        return check_password_hash(self.password_hash, password)
+    
+    def __repr__(self):
+        return f"User {self.username}"
+    
+class Role(db.Model):
+    __tablename__ = 'roles'
+    
+    id =db.Column(db.Integer,primary_key=True)
+    name = db.Column(db.String(255))
+    user = db.relationship('User',backref='role',lazy=dynamic)
+    
+    def __repr__(self):
+        return f'User{self.name}'
+    
+class Blog(db.Model):
+    __tablename__ = 'blogs'
+    
+    id = db.Column(db.Integer,primary_key=True)
+    title=db.Column(db.String)
+    content = db.Column(db.String)
+    date= db.Column(db)
+    user_id=db.Column(db.Integer,db.ForeignKey('users.id'))
+    comments=db.relationship('Comment',backref = 'blog',lazy='dynamic')
+    
+    def save_blog(self):
+        ''' Function that saves the blogs'''
+        db.session.add(self)
+        db.session.commit()
+
+
+    def delete_blog(self):
+        '''
+        Function that deletes the blogs
+        '''
+        db.session.delete(self)
+        db.session.commit()
+        
+    def get_all_blogs(cls):
+        ''' Function retrives blogs'''
+        return Blog.query.all()    
+    
+class Comment(db.Model):
+    __tablename__='comments'
+    id = db.Column(db.Integer,primary_key=True)
+    comment= db.Column(db.String)
+    blogs_id = db.Column(db.Integer,db.ForeignKey('blogs.id'))
+    posted_date=db.Column(db.DateTime,default=datetime.utcnow)
+
+    
+    def save_comments(self):
+        db.session.add(self)
+        db.session.commit()
+        
+    
+    @classmethod
+    def get_comments(cls,id):
+        comments=Comment.query.filter_by(blog_id=id).all()
+        return comments
+
+    @classmethod
+    def clear_comments(cls):
+        Comment.all_comments.clear
+        
+
+class Subscribe(db.Model):
+    __tablename__ = 'subscribers'
+    id = db.Column(db.Integer,primary_key=True)
+    email = db.Column(db.String(50))
