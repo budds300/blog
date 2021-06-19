@@ -12,15 +12,15 @@ class Config:
     SIMPLEMDE_JS_IIFE = True
     SIMPLEMDE_USE_CDN = True
     
-    class ProdConfig(Config):
+class ProdConfig(Config):
      '''
     Production configuration child class
     
     Args:
         Config:The parent configuration class with General configuration settings
     '''
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
-    DEBUG = False
+     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
+     DEBUG = False
 
 class TestConfig(Config):
     pass
