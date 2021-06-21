@@ -7,14 +7,14 @@
 {% endblock %}
 
 {% block content%}
-<h1 class="text-center">{{post.title}}</h1>
+<h1 class="text-center" style="font-family:Lobster, cursive;">{{post.title}}</h1>
     <div class="container content">
         <div class="post-card text-center">
             <div class="img-container">
                 <img class="text-center img-responsive" src="{{url_for('static', filename=post.image)}}" alt="" height="600px"
                     width="750px">
             </div>
-            <h2>{{post.title}}</h2>
+            <h2  style="font-family:Lobster, cursive;">{{post.title}}</h2>
             <h3><em>By {{post.user.full_name}} | {{post.time[0:10]}} at {{post.time[11:16]}}</em></h3>
             <div>
                 <p>{{post.content}}</p>

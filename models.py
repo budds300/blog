@@ -27,7 +27,7 @@ class User(UserMixin,db.Model):
         
     @property
     def password(self):
-        raise AttributeError("You cannot read the password attribute")
+        raise AttributeError("Gerrarahia")
 
     @password.setter
     def password(self,password):
@@ -36,9 +36,6 @@ class User(UserMixin,db.Model):
     def verify_pass(self,password):
         return check_password_hash(self.user_pass, password)
     
-    def __repr__(self):
-
-        return f'User {self.username}'
 
 
 class Post(db.Model):
