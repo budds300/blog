@@ -1,52 +1,41 @@
-from flask import render_template, redirect, url_for, flash, request
-from flask_login import login_user, logout_user, login_required
 from . import auth
+from flask import redirect,render_template,url_for
+from flask_login import login_user,logout_user
+from .forms import RegistrationForm,LoginForm
 from ..models import User
-from .forms import LoginForm, RegistrationForm
-from .. import db
-from ..email import mail_message
+from ..email import create_mail
 
+@auth.route("/register", methods = ["GET","POST"])
+def register():
+    form = RegistrationForm()
 
-@auth.route('/login', methods=['GET', 'POST'])
+    if form.validate_on_submit():
+        full_name = form.full_name.data
+        username = form.username.data
+        password = form.password.data
+        email = form.email.data
+        user = User(full_name = full_name, password = password,email = email, username = username)
+        user.save_user()
+        create_mail("Welcome","email/email",user.email,name = user.full_name)
+
+        return redirect(url_for('auth.login'))
+
+    title = "Register"
+    return render_template("auth/register.html", form = form)
+
+@auth.route("/login", methods = ["GET","POST"])
 def login():
-    login_form = LoginForm()
-    if login_form.validate_on_submit():
-        user = User.query.filter_by(email=login_form.email.data).first()
-        if user is not None and user.verify_password(login_form.password.data):
-            login_user(user, login_form.remember.data)
-            return redirect(request.args.get('next') or url_for('main.index'))
+    form = LoginForm()
+    if form.validate_on_submit():
+        email = form.email.data
+        user = User.query.filter_by(email = email).first()
+        if user is not None and user.verify_pass(form.password.data):
+            login_user(user,form.remember.data)
+            return redirect(url_for('main.index'))
+    title = "Login"
+    return render_template("auth/login.html", form = form)
 
-        flash('Invalid username or Password')
-    title = "Pitch login"
-    return render_template('auth/login.html',
-                           login_form=login_form,
-                           title=title)
-
-
-@auth.route('/logout')
-@login_required
+@auth.route("/logout")
 def logout():
     logout_user()
     return redirect(url_for("main.index"))
-
-
-@auth.route('/register', methods=["GET", "POST"])
-def register():
-    form = RegistrationForm()
-    if form.validate_on_submit():
-        user = User(email=form.email.data,
-                    username=form.username.data,
-                    password=form.password.data)
-        db.session.add(user)
-        db.session.commit()
-
-        mail_message("Welcome to BlogApp",
-                     "email/welcome_subscriber",
-                     user.email,
-                     user=user)
-
-        return redirect(url_for('auth.login'))
-    title = "Register Now"
-    return render_template('auth/register.html',
-                           title=title,
-                           registration_form=form)

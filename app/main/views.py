@@ -1,155 +1,119 @@
-from flask import render_template,redirect,flash,url_for,abort,request
-from ..request import get_quotes
-from .forms import  BlogForm, CommentsForm,UpdateProfile
 from . import main
+from flask_login import current_user, login_required
+from .forms import AddPostForm,SubscribeForm,AddComment,EditBio
+from ..models import Post,User,Comment,Subscriber
+from flask import redirect,url_for,render_template,flash,request
 from .. import db,photos
-from flask_login import login_required,current_user
-from ..models import User,Blog,Comment,Subscribe
-from ..email import mail_message
-import markdown2
+from ..request import get_quotes
+from datetime import datetime
+from app.email import create_mail
 
-@main.route('/')
+@main.route("/", methods = ["GET","POST"])
 def index():
-    '''
-    Functin that returns index page and its data
-    '''
+    form = SubscribeForm()
+    if form.validate_on_submit():
+        email = form.email.data
+        new_subscriber = Subscriber(email = email)
+        db.session.add(new_subscriber)
+        db.session.commit()
+        flash("Thank You for subscribing!")
+        return redirect(url_for("main.index"))
+    posts = Post.query.order_by(Post.time.desc())
     title = 'BlogApp-Welcome to blogapp your trusted site for creativity'
     
     quote_item = get_quotes()
-    blog_items = Blog.get_all_blogs()
-    print(quote_item)
-    return render_template('index.html',title = title , quote_item=quote_item,blog_items=blog_items) 
+    return render_template("index.html",posts = posts,form = form,title = title, quote_item=quote_item)
 
-@main.route('/about')
-def about():
-    '''
-    Function that returns the about page and its contents
-    '''
-    title = 'About'
-    return render_template('about.html')
-
-@main.route('/post/<int:blog_id>',methods=['GET','POST'])
-def post(blog_id):
-    '''
-    Function that retuns the blog page and its data
-    '''
-    blog_item = Blog.query.filter_by(id=blog_id).one()
-    post_comments = Comment.get_comments(blog_id)
-    
-    return render_template('post.html',blog_item=blog_item,post_comments=post_comments)
-
-@main.route('/createblog',methods=['GET','POST'])
+@main.route("/add/post/",methods = ["GET","POST"])
 @login_required
-def createblog():
-    '''
-    View root page that returns the createblog post page and its data
-    '''
-    form = BlogForm()
+def add_post():
+    form = AddPostForm()
+    title = "Add Post"
+
+
     if form.validate_on_submit():
-        title=form.title.data
-        content=form.content.data
-        
-        new_post = Blog(title=title,content=content, user=current_user)
-        db.session.add(new_post)
-        db.session.commit()
+        title = form.title.data
+        content = form.content.data
+        posted = str(datetime.now())
+        print(posted)
+        if "photo" in request.files:
+            pic = photos.save(request.files["photo"])
+            file_path = f"photos/{pic}"
+            image = file_path
+        new_post = Post(title = title, content = content, user = current_user,image = image,time = posted)
+        new_post.save_post()
+        subscribers = Subscriber.query.all()
+        emails = []
+        for subscriber in subscribers:
+            emails.append(subscriber.email)
+        for email in emails:
+            create_mail("Update!","email/update",email, user = current_user)
+        print(emails)
         return redirect(url_for('main.index'))
-    return render_template('createblog.html',form=form)
 
-@main.route('/blog/comments/newblog/<int:id>',methods=['GET','POST'])
-@login_required
-def new_comment(id):
-    form = CommentsForm()
-    
+    return render_template("add_pitch.html",form = form,title = title)
+
+@main.route("/post/<int:id>",methods = ["GET","POST"])
+def post_page(id):
+    post = Post.query.filter_by(id = id).first()
+    title = post.title
+    form = AddComment()
     if form.validate_on_submit():
-        new_comment = Comment(blog_id=id,comment=form.comment.data)
-        new_comment.save_comments()
-        return redirect(url_for('main.post',blog_id=id))
-    return render_template('new_comment.html',comment_form=form)
+        name = form.name.data
+        content = form.comment.data
+        new_comment = Comment(name = name, content = content, post = post)
+        new_comment.save_comment()
+        return redirect(url_for('main.post_page', id = post.id))
+    comments = Comment.query.filter_by(post_id = post.id)
+    title = post.title
+    return render_template("post.html", title = title, post = post,form = form,comments = comments)
 
-@main.route('/user/<uname>/update/pic',methods =['POST'])
-@login_required
-def update_pic(uname):
-    user = User.query.filter_by(username=uname).first()
-    if 'photo' in request.files:
-        filename = photos.save(request.files['photo'])
-        path= f'photos/{filename}'
-        user.profile_pic_path = path
-        db.session.commit()
-    return redirect(url_for('main.profile',uname=uname))
-
-@main.route('/user/<uname>') 
-def profile(uname):
-    
-    user = User.query.filter_by(username = uname).first()
-    
-    if user is None:
-        abort(404)
-    
-    return render_template("profile/profile.html",user=user)
- 
-@main.route('/user/<uname>/update',methods = ['GET','POST'])
-@login_required
-def update_profile(uname):
-    user = User.query.filter_by(username = uname).first()
-    if user is None:
-        abort(404)
-
-    form = UpdateProfile()
-
-    if form.validate_on_submit():
-        user.bio = form.bio.data
-
-        db.session.add(user)
-        db.session.commit()
-
-        return redirect(url_for('.profile',uname=user.username))
-    
-    return render_template('profile/update.html',form =form)
-
-@main.route("/post/<int:blog_id>/update", methods=['GET', 'POST'])
-def update_post(blog_id):
-    post = Blog.query.get_or_404(blog_id)
-    if post.user != current_user:
-        abort(403)
-    form = BlogForm()
-    if form.validate_on_submit():
-        post.title = form.title.data
-        post.content = form.content.data
-        
-        db.session.commit()
-        flash('Your post has been updated!', 'success')
-        return redirect(url_for('main.post', blog_id=post.id))
-    elif request.method == 'GET':
-        form.title.data = post.title
-        form.content.data = post.content
-    return render_template('createblog.html', title='Update Post', form=form)
-
-@main.route("/post/<int:blog_id>/delete", methods=['POST'])
-@login_required
-def delete_post(blog_id):
-    post = Blog.query.get_or_404(blog_id)
-    if post.user != current_user:
-        abort(403)
+@main.route("/delete/<id>")
+def delete(id):
+    post = Post.query.filter_by(id = id).first()
+    user_id = post.user_id
     db.session.delete(post)
     db.session.commit()
-    
-    flash('Your post has been deleted!', 'success')
-    return redirect(url_for('main.index'))
 
+    return redirect(url_for('main.profile', id = user_id))
 
+@main.route("/delete/comment/<id>")
+def delete_comment(id):
+    comment = Comment.query.filter_by(id = id).first()
+    post_id = comment.post.id
+    db.session.delete(comment)
+    db.session.commit()
+    return redirect(url_for("main.post_page", id = post_id))
 
-#sSubscribe
-@main.route('/subscribe', methods=['GET', 'POST'])
-def subscribe():
-    '''
-    Function to send email upon subscription
-    '''
-    if request.method == 'POST':
-        email = request.form['email']
-        new_email = Subscribe(email=email)
-        db.session.add(new_email)
+@main.route("/profile/<id>")
+def profile(id):
+    user = User.query.filter_by(id = id).first()
+    posts = Post.query.filter_by(user_id = user.id).order_by(Post.time.desc())
+    title = user.full_name
+    return render_template("profile.html", user = user,posts = posts, title = title)
+
+@main.route("/<user_id>/profile/edit",methods = ["GET","POST"])
+@login_required
+def update_profile(user_id):
+    title = "Edit Profile"
+    user = User.query.filter_by(id = user_id).first()
+    form = EditBio()
+
+    if form.validate_on_submit():
+        bio = form.bio.data
+        user.bio = bio
+        db.session.commit() 
+        return redirect(url_for('main.profile',id = user.id)) 
+    return render_template("update_profile.html",form = form,title = title)
+
+@main.route("/pic/<user_id>/update", methods = ["POST"])
+@login_required
+def update_pic(user_id):
+    user = User.query.filter_by(id = user_id).first()
+    title = "Edit Profile"
+    if "profile-pic" in request.files:
+        pic = photos.save(request.files["profile-pic"])
+        file_path = f"photos/{pic}"
+        user.image = file_path
         db.session.commit()
-        # mail_message("Welcome to Blogging site","email/welcome_subscriber", new_email.email,new_email=new_email)
-        flash('Thank you for your subscribing')
-        return redirect(url_for('main.index'))
-        
+    return redirect(url_for("main.profile", id = user.id))

@@ -1,0 +1,15 @@
+<div style="border-radius: 0;z-index:1;" class="navbar navbar-inverse navbar-dark bg-dark " role="navigation">
+    <div class="container">
+           <a href="/" class="navbar-brand">BLOG</a>
+           <ul class="nav navbar-nav navbar-right">
+                {% if current_user.is_authenticated%}
+                <li><a href="{{url_for('main.add_post')}}">ADD POST</a></li>
+                <li><a href="{{url_for('main.profile', id = current_user.id)}}">{{current_user.username}}</a></li>
+                <li><a href="{{url_for('auth.logout')}}">LOGOUT</a></li>
+                {% else %}
+                <li><a href="{{url_for('auth.login')}}"class="text-white">LOGIN</a></li>
+                {% endif %}
+            </ul>
+            
+     </div>
+  </div>
